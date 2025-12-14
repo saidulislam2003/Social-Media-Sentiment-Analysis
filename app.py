@@ -13,7 +13,7 @@ st.write("Accurate classical ML sentiment detection for positive, neutral, and n
 
 @st.cache_resource
 def load_model():
-    return joblib.load("sentiment_pipeline_expert.pkl")
+    return joblib.load("sentiment_pipeline.pkl")
 
 pipeline = load_model()
 
@@ -62,3 +62,4 @@ if st.button("Analyze Sentiment"):
 
         with st.expander("🔍 Probabilities"):
             st.write(prob_dict)
+
