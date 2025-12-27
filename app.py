@@ -1,88 +1,91 @@
 import streamlit as st
 import joblib
-import re
+import os
 
-# -----------------------------
-# App Config
-# -----------------------------
+# -------------------------------
+# Page Config
+# -------------------------------
 st.set_page_config(
-    page_title="Expert Sentiment Analysis",
+    page_title="Social Media Sentiment Analysis",
     page_icon="💬",
     layout="centered"
 )
 
-st.title("💬 Expert Sentiment Analysis")
-st.write("Accurate classical ML sentiment detection for positive, neutral, and negative inputs.")
+# -------------------------------
+# Constants
+# -------------------------------
+MODEL_PATH = "models/sentiment_pipeline.pkl"
 
-# -----------------------------
-# Load Pipeline
-# -----------------------------
+# -------------------------------
+# Load Model (Cached)
+# -------------------------------
 @st.cache_resource
 def load_model():
-    return joblib.load("sentiment_pipeline.pkl")
+    """
+    Load the trained sentiment analysis pipeline.
+    Cached to avoid reloading on every interaction.
+    """
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(
+            f"❌ Model file not found at: {MODEL_PATH}\n"
+            f"Make sure the file exists and is pushed to GitHub."
+        )
+    return joblib.load(MODEL_PATH)
 
-pipeline = load_model()
+# Load model safely
+try:
+    pipeline = load_model()
+except Exception as e:
+    st.error(str(e))
+    st.stop()
 
-# -----------------------------
-# Text Cleaning
-# -----------------------------
-def clean_text(text: str) -> str:
-    text = text.lower()
-    text = re.sub(r"http\S+|www\S+", "", text)
-    text = re.sub(r"@\w+", "", text)
-    text = re.sub(r"#", "", text)
-    text = re.sub(r"[^a-z0-9\s']", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
+# -------------------------------
+# UI
+# -------------------------------
+st.title("💬 Social Media Sentiment Analysis")
+st.write("Analyze sentiment of social media text using a trained ML model.")
 
-# -----------------------------
-# User Input
-# -----------------------------
 user_input = st.text_area(
-    "Enter your text here:",
-    placeholder="I really hate this...",
-    height=120
+    "Enter text to analyze:",
+    height=150,
+    placeholder="Type a tweet, comment, or post..."
 )
 
-# -----------------------------
-# Prediction Logic
-# -----------------------------
+# -------------------------------
+# Prediction
+# -------------------------------
 if st.button("Analyze Sentiment"):
-    if not user_input.strip():
+    if user_input.strip() == "":
         st.warning("⚠️ Please enter some text.")
     else:
-        # Clean input
-        cleaned_text = clean_text(user_input)
+        try:
+            prediction = pipeline.predict([user_input])[0]
 
-        # Predict probabilities (IMPORTANT)
-        proba = pipeline.predict_proba([cleaned_text])[0]
-        classes = pipeline.classes_
+            # Optional: probability support
+            if hasattr(pipeline, "predict_proba"):
+                prob = pipeline.predict_proba([user_input]).max()
 
-        # Map class -> probability
-        prob_dict = {
-            label: float(prob)
-            for label, prob in zip(classes, proba)
-        }
+            # Display result
+            st.subheader("Result")
 
-        # Expert thresholds (tunable)
-        NEGATIVE_THRESHOLD = 0.35
-        POSITIVE_THRESHOLD = 0.35
+            if prediction.lower() == "positive":
+                st.success(f"😊 Positive sentiment")
+            elif prediction.lower() == "negative":
+                st.error(f"😠 Negative sentiment")
+            else:
+                st.info(f"😐 Neutral sentiment")
 
-        # Decision logic
-        if prob_dict.get("negative", 0.0) >= NEGATIVE_THRESHOLD:
-            prediction = "Negative 😠"
-        elif prob_dict.get("positive", 0.0) >= POSITIVE_THRESHOLD:
-            prediction = "Positive 😊"
-        else:
-            prediction = "Neutral 😐"
+            if hasattr(pipeline, "predict_proba"):
+                st.caption(f"Confidence: {prob:.2f}")
 
-        # -----------------------------
-        # Output
-        # -----------------------------
-        st.subheader("Prediction")
-        st.success(prediction)
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
 
-        # Probability display
-        with st.expander("🔍 Probabilities"):
-            for label, prob in prob_dict.items():
-                st.write(f"**{label.capitalize()}**: {prob:.3f}")
+# -------------------------------
+# Debug Section (Remove later)
+# -------------------------------
+with st.expander("🔍 Debug Info"):
+    st.write("Current directory:", os.getcwd())
+    st.write("Files in root:", os.listdir())
+    if os.path.exists("models"):
+        st.write("Files in models/:", os.listdir("models"))
