@@ -1,107 +1,91 @@
 import streamlit as st
 import joblib
-import re
 import os
 
-
+# -------------------------------
+# Page Config
+# -------------------------------
 st.set_page_config(
-    page_title="Sentiment Analysis",
+    page_title="Social Media Sentiment Analysis",
     page_icon="💬",
     layout="centered"
 )
 
-st.title("💬 Sentiment Analysis")
-st.write("Classic ML-based sentiment analysis with expert corrections")
+# -------------------------------
+# Constants
+# -------------------------------
+MODEL_PATH = "models/sentiment_model.pkl"
 
-
-MODEL_PATH = os.path.join(
-    os.path.dirname(__file__),
-    "sentiment_pipeline_expert.pkl"
-)
-
+# -------------------------------
+# Load Model (Cached)
+# -------------------------------
 @st.cache_resource
 def load_model():
+    """
+    Load the trained sentiment analysis pipeline.
+    Cached to avoid reloading on every interaction.
+    """
+    if not os.path.exists(MODEL_PATH):
+        raise FileNotFoundError(
+            f"❌ Model file not found at: {MODEL_PATH}\n"
+            f"Make sure the file exists and is pushed to GitHub."
+        )
     return joblib.load(MODEL_PATH)
 
-pipeline = load_model()
+# Load model safely
+try:
+    pipeline = load_model()
+except Exception as e:
+    st.error(str(e))
+    st.stop()
 
-vectorizer = pipeline.named_steps["tfidf"]
-model = pipeline.named_steps["svm"]
-
-
-def clean_text(text: str) -> str:
-    text = text.lower()
-    text = re.sub(r"http\S+|www\S+", "", text)
-    text = re.sub(r"@\w+", "", text)
-    text = re.sub(r"#", "", text)
-    text = re.sub(r"[^a-z\s']", " ", text)
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
-STRONG_NEGATIVE_WORDS = {
-    "hate", "hated", "hating",
-    "worst", "awful", "terrible",
-    "disgusting", "horrible",
-    "pathetic", "useless",
-    "trash", "garbage",
-    "bad", "poor", "annoying"
-}
-
-STRONG_POSITIVE_WORDS = {
-    "love", "loved", "loving",
-    "amazing", "excellent",
-    "awesome", "fantastic",
-    "perfect", "wonderful",
-    "great"
-}
+# -------------------------------
+# UI
+# -------------------------------
+st.title("💬 Social Media Sentiment Analysis")
+st.write("Analyze sentiment of social media text using a trained ML model.")
 
 user_input = st.text_area(
-    "Enter your text:",
-    placeholder="I really hate this product...",
-    height=120
+    "Enter text to analyze:",
+    height=150,
+    placeholder="Type a tweet, comment, or post..."
 )
 
-
+# -------------------------------
+# Prediction
+# -------------------------------
 if st.button("Analyze Sentiment"):
-
-    if not user_input.strip():
+    if user_input.strip() == "":
         st.warning("⚠️ Please enter some text.")
     else:
-        cleaned = clean_text(user_input)
-        tokens = set(cleaned.split())
+        try:
+            prediction = pipeline.predict([user_input])[0]
 
-        if tokens & STRONG_NEGATIVE_WORDS:
-            sentiment = "Negative 😠"
-            reason = "Detected strong negative keywords"
+            # Optional: probability support
+            if hasattr(pipeline, "predict_proba"):
+                prob = pipeline.predict_proba([user_input]).max()
 
-        elif tokens & STRONG_POSITIVE_WORDS:
-            sentiment = "Positive 😊"
-            reason = "Detected strong positive keywords"
+            # Display result
+            st.subheader("Result")
 
-        else:
-            X_vec = vectorizer.transform([cleaned])
-            scores = model.decision_function(X_vec)[0]
-            classes = model.classes_
-
-            score_dict = dict(zip(classes, scores))
-
-            if score_dict.get("negative", -1) > 0.2:
-                sentiment = "Negative 😠"
-            elif score_dict.get("positive", -1) > 0:
-                sentiment = "Positive 😊"
+            if prediction.lower() == "positive":
+                st.success(f"😊 Positive sentiment")
+            elif prediction.lower() == "negative":
+                st.error(f"😠 Negative sentiment")
             else:
-                sentiment = "Neutral 😐"
+                st.info(f"😐 Neutral sentiment")
 
-            reason = "Predicted by ML model"
+            if hasattr(pipeline, "predict_proba"):
+                st.caption(f"Confidence: {prob:.2f}")
 
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
 
-        st.subheader("Prediction")
-        st.success(sentiment)
-
-        with st.expander("ℹ️ Prediction Details"):
-            st.write("Cleaned text:", cleaned)
-            st.write("Reason:", reason)
-
-            if "score_dict" in locals():
-                st.write("Decision scores:", score_dict)
+# -------------------------------
+# Debug Section (Remove later)
+# -------------------------------
+with st.expander("🔍 Debug Info"):
+    st.write("Current directory:", os.getcwd())
+    st.write("Files in root:", os.listdir())
+    if os.path.exists("models"):
+        st.write("Files in models/:", os.listdir("models"))
