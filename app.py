@@ -1,91 +1,47 @@
 import streamlit as st
-import joblib
-import os
+import pickle
+import re
+import nltk
+from nltk.corpus import stopwords
 
-# -------------------------------
-# Page Config
-# -------------------------------
-st.set_page_config(
-    page_title="Social Media Sentiment Analysis",
-    page_icon="💬",
-    layout="centered"
-)
+nltk.download('stopwords')
 
-# -------------------------------
-# Constants
-# -------------------------------
-MODEL_PATH = "models/sentiment_pipeline.pkl"
+# Load saved vectorizer and classifier
+with open("vectorizer.pkl", "rb") as f:
+    vectorizer = pickle.load(f)
 
-# -------------------------------
-# Load Model (Cached)
-# -------------------------------
-@st.cache_resource
-def load_model():
-    """
-    Load the trained sentiment analysis pipeline.
-    Cached to avoid reloading on every interaction.
-    """
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(
-            f"❌ Model file not found at: {MODEL_PATH}\n"
-            f"Make sure the file exists and is pushed to GitHub."
-        )
-    return joblib.load(MODEL_PATH)
+with open("model.pkl", "rb") as f:
+    model = pickle.load(f)
 
-# Load model safely
-try:
-    pipeline = load_model()
-except Exception as e:
-    st.error(str(e))
-    st.stop()
+# Text cleaning function (same preprocessing used during training)
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r"http\S+", "", text)
+    text = re.sub(r"[^a-zA-Z\s]", "", text)
+    tokens = text.split()
+    tokens = [word for word in tokens if word not in stopwords.words("english")]
+    text = " ".join(tokens)
+    return text
 
-# -------------------------------
-# UI
-# -------------------------------
-st.title("💬 Social Media Sentiment Analysis")
-st.write("Analyze sentiment of social media text using a trained ML model.")
+# Streamlit app layout
+st.set_page_config(page_title="Social Media Sentiment Analysis")
+st.title("📊 Social Media Sentiment Analyzer")
 
-user_input = st.text_area(
-    "Enter text to analyze:",
-    height=150,
-    placeholder="Type a tweet, comment, or post..."
-)
+input_text = st.text_area("Enter text to analyze:")
 
-# -------------------------------
-# Prediction
-# -------------------------------
 if st.button("Analyze Sentiment"):
-    if user_input.strip() == "":
-        st.warning("⚠️ Please enter some text.")
+    if input_text.strip() == "":
+        st.error("⚠ Please enter some text to analyze!")
     else:
-        try:
-            prediction = pipeline.predict([user_input])[0]
-
-            # Optional: probability support
-            if hasattr(pipeline, "predict_proba"):
-                prob = pipeline.predict_proba([user_input]).max()
-
-            # Display result
-            st.subheader("Result")
-
-            if prediction.lower() == "positive":
-                st.success(f"😊 Positive sentiment")
-            elif prediction.lower() == "negative":
-                st.error(f"😠 Negative sentiment")
-            else:
-                st.info(f"😐 Neutral sentiment")
-
-            if hasattr(pipeline, "predict_proba"):
-                st.caption(f"Confidence: {prob:.2f}")
-
-        except Exception as e:
-            st.error(f"Prediction failed: {e}")
-
-# -------------------------------
-# Debug Section (Remove later)
-# -------------------------------
-with st.expander("🔍 Debug Info"):
-    st.write("Current directory:", os.getcwd())
-    st.write("Files in root:", os.listdir())
-    if os.path.exists("models"):
-        st.write("Files in models/:", os.listdir("models"))
+        # Preprocess user text
+        cleaned = preprocess_text(input_text)
+        
+        # Vectorize and predict
+        vect = vectorizer.transform([cleaned])
+        pred = model.predict(vect)[0]
+        
+        # Output result
+        if pred == 1:
+            st.success("😊 Positive sentiment")
+        else:
+            st.error("☹️ Negative sentiment")
