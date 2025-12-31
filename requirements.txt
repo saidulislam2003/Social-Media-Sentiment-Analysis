@@ -4,4 +4,5 @@
  seaborn 
  numpy 
  scikit-learn 
+ nltk
  joblib   
