@@ -1,43 +1,36 @@
 import streamlit as st
 import pickle
 import re
-import nltk
-from nltk.corpus import stopwords
 
-nltk.download("stopwords")
+# Load pipeline
+with open("sentiment_pipeline.pkl", "rb") as f:
+    sentiment_pipeline = pickle.load(f)
 
-# Load the saved vectorizer and model
-with open("vectorizer.pkl", "rb") as f:
-    vectorizer = pickle.load(f)
-
-with open("model.pkl", "rb") as f:
-    model = pickle.load(f)
-
-# Text preprocessing (cleaning)
+# Clean text (basic)
 def preprocess_text(text):
     text = text.lower()
     text = re.sub(r"http\S+", "", text)
     text = re.sub(r"[^a-zA-Z\s]", "", text)
-    tokens = text.split()
-    tokens = [word for word in tokens if word not in stopwords.words("english")]
-    return " ".join(tokens)
+    text = " ".join(text.split())
+    return text
 
-# App UI
+# Streamlit UI
 st.set_page_config(page_title="Social Media Sentiment Analysis")
 st.title("📊 Social Media Sentiment Analysis")
 
 input_text = st.text_area("Enter text to analyze:")
 
 if st.button("Analyze Sentiment"):
-    if not input_text.strip():
-        st.warning("⚠ Please enter text first!")
+    if input_text.strip() == "":
+        st.warning("⚠ Please enter some text!")
     else:
         cleaned = preprocess_text(input_text)
-        vect = vectorizer.transform([cleaned])
-        prediction = model.predict(vect)[0]
-
+        
+        # Predict
+        pred = sentiment_pipeline.predict([cleaned])[0]
+        
         # Show result
-        if prediction == 1:
+        if pred == 1:
             st.success("😊 Positive sentiment")
         else:
             st.error("☹️ Negative sentiment")
