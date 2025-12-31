@@ -3,7 +3,7 @@ import pickle
 import re
 
 # Load the saved sentiment pipeline
-with open("sentiment_pipeline.pkl", "rb") as f:
+with open("models/sentiment_pipeline.pkl", "rb") as f:
     sentiment_pipeline = pickle.load(f)
 
 # Basic text cleaning (no NLTK)
@@ -33,3 +33,4 @@ if st.button("Analyze Sentiment"):
             st.success("😊 Positive sentiment")
         else:
             st.error("☹️ Negative sentiment")
+
